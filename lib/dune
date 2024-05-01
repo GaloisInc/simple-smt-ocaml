@@ -1,0 +1,16 @@
+(library
+ (name        simple_smt)
+ (public_name simple_smt)
+ (libraries   unix sexplib zarith)
+ (preprocess (pps ppx_deriving.show))
+)
+
+(env
+ (dev
+  (flags (:standard -warn-error -A))
+  )
+)
+
+(documentation
+  (package simple_smt)
+)

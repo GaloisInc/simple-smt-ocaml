@@ -1,0 +1,13 @@
+
+(executable
+ (public_name main)
+ (name main)
+ (modules main)
+ (libraries simple_smt zarith)
+ (modes exe)
+)
+
+(env
+  (dev
+    (flags (:standard -warn-error -A))))
+
