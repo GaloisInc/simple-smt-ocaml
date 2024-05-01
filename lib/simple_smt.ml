@@ -32,14 +32,14 @@ This predicate indicates whether a character is allowed in a simple
 symbol.  Note that only ASCII letters are allowed. *)
 let allowed_simple_char c =
   let co = Char.code c in
-  let in_range a b = Char.code a <= co && co <= Char.code b
-  in in_range 'a' 'z' ||
-     in_range 'A' 'Z' ||
-     in_range '0' '9' ||
-     String.contains "~!@$%^&*_-+=<>.?/" c
+  let in_range a b = Char.code a <= co && co <= Char.code b in
+  in_range 'a' 'z' ||
+  in_range 'A' 'Z' ||
+  in_range '0' '9' ||
+  String.contains "~!@$%^&*_-+=<>.?/" c
 
-let is_simple_symbol s = not (String.equal "" s) &&
-                         String.for_all allowed_simple_char s
+let is_simple_symbol s =
+  not (String.equal "" s) && String.for_all allowed_simple_char s
 
 let quote_symbol s =
   if is_simple_symbol s
@@ -309,8 +309,8 @@ exception UnexpectedSolverResponse of sexp
     Throws {! UnexpectedSolverResponse} *)
 let ack_command (s: solver) cmd =
   match s.command cmd with
-    | Sexp.Atom "success" -> ()
-    | ans                 -> raise (UnexpectedSolverResponse ans)
+  | Sexp.Atom "success" -> ()
+  | ans                 -> raise (UnexpectedSolverResponse ans)
 
 let simple_command s xs = ack_command s (list (List.map atom xs))
 let set_option s x y    = simple_command s [ "set-option"; x; y ]
@@ -334,14 +334,12 @@ let declare_datatype s name type_params cons =
   let mk_field ((f,argTy):con_field)  = list [atom f; argTy] in
   let mk_con (c,fs)       = list (atom c :: List.map mk_field fs) in
   let mk_cons             = list (List.map mk_con cons) in
-  if List.is_empty type_params
-    then
-      ack_command s (app_ "declare-datatype" [ atom name; mk_cons ])
-    else
-      ack_command s (app_ "declare-datatype"
-                      [ atom name
-                      ; app_ "par" [ List (List.map atom type_params); mk_cons ]
-                      ])
+  let def =
+    match type_params with
+    | [] -> mk_cons
+    | _  -> app_ "par" [ List (List.map atom type_params); mk_cons ]
+  in
+  ack_command s (app_ "declare-datatype" [ atom name; def ])
 
 (** The name of a tuple with the given arity. *)
 let tuple_name name arity = name ^ "_" ^ string_of_int arity
@@ -377,10 +375,10 @@ type result = Unsat | Unknown | Sat
 
 let check s =
   match s.command (Sexp.of_string "(check-sat)") with
-    | Sexp.Atom "unsat" -> Unsat
-    | Sexp.Atom "sat" -> Sat
-    | Sexp.Atom "unknown" -> Unknown
-    | ans -> raise (UnexpectedSolverResponse ans)
+  | Sexp.Atom "unsat" -> Unsat
+  | Sexp.Atom "sat" -> Sat
+  | Sexp.Atom "unknown" -> Unknown
+  | ans -> raise (UnexpectedSolverResponse ans)
 
 (** {2 Decoding Results} *)
 
@@ -388,20 +386,20 @@ let check s =
 let get_exprs s vals: sexp list =
   let res = s.command (list [ atom "get-value"; list vals ]) in
   match res with
-    | Sexp.List xs ->
-      let get_val pair =
-            match pair with
-              | Sexp.List [_;x] -> x
-              | _ -> raise (UnexpectedSolverResponse res)
-      in List.map get_val xs
-    | _ -> raise (UnexpectedSolverResponse res)
+  | Sexp.List xs ->
+    let get_val pair =
+          match pair with
+          | Sexp.List [_;x] -> x
+          | _ -> raise (UnexpectedSolverResponse res)
+    in List.map get_val xs
+  | _ -> raise (UnexpectedSolverResponse res)
 
 (** Try to decode an s-expression as a boolean *)
 let to_bool (exp: sexp) =
   match exp with
-    | Sexp.Atom "true"  -> Some true
-    | Sexp.Atom "false" -> Some false
-    | _ -> None
+  | Sexp.Atom "true"  -> Some true
+  | Sexp.Atom "false" -> Some false
+  | _ -> None
 
 (** Try to decode an s-expression as a bitvector of the given width.
 The 2nd argument indicates if the number is signed.
@@ -409,15 +407,15 @@ The 2nd argument indicates if the number is signed.
 let to_bits w signed (** Hello*) (exp: sexp) =
   let check_sign z = Some (if signed then Z.signed_extract z 0 w else z) in
   match exp with
-    | Sexp.Atom s
-      when String.starts_with ~prefix: "#b" s &&
-           String.length s - 2 = w ->
-             check_sign (Z.of_string_base 2 (String.sub s 2 w))
-    | Sexp.Atom s
-      when String.starts_with ~prefix: "#x" s &&
-           (String.length s - 2) * 4 = w ->
-             check_sign (Z.of_string_base 16 (String.sub s 2 (w/4)))
-   | _ -> None
+  | Sexp.Atom s
+    when String.starts_with ~prefix: "#b" s && String.length s - 2 = w ->
+    check_sign (Z.of_string_base 2 (String.sub s 2 w))
+
+  | Sexp.Atom s
+    when String.starts_with ~prefix: "#x" s && (String.length s - 2) * 4 = w ->
+    check_sign (Z.of_string_base 16 (String.sub s 2 (w/4)))
+
+  | _ -> None
 
 (** Try to decode an s-expression as an integer. *)
 let to_z (exp: sexp) =
@@ -428,18 +426,18 @@ let to_z (exp: sexp) =
         with Invalid_argument _ -> None
   in
   match exp with
-    | Sexp.Atom s -> parse false s
-    | Sexp.List [ Sexp.Atom "-"; Sexp.Atom s ] -> parse true s
-    | _ -> None
+  | Sexp.Atom s -> parse false s
+  | Sexp.List [ Sexp.Atom "-"; Sexp.Atom s ] -> parse true s
+  | _ -> None
 
 (** Try to decode an s-expression as a rational number. *)
 let to_q (exp: sexp) =
   let rec eval e =
     match e with
-      | Sexp.Atom s -> Q.of_string s
-      | Sexp.List [ Sexp.Atom "-"; e1] -> Q.neg (eval e1)
-      | Sexp.List [ Sexp.Atom "/"; e1; e2] -> Q.div (eval e1) (eval e2)
-      | _ -> raise (Invalid_argument "to_q")
+    | Sexp.Atom s -> Q.of_string s
+    | Sexp.List [ Sexp.Atom "-"; e1] -> Q.neg (eval e1)
+    | Sexp.List [ Sexp.Atom "/"; e1; e2] -> Q.div (eval e1) (eval e2)
+    | _ -> raise (Invalid_argument "to_q")
   in try Some (eval exp) with Invalid_argument _ -> None
 
 
@@ -447,18 +445,17 @@ let to_q (exp: sexp) =
 let to_con c (exp: sexp): sexp list option =
   let check_con actual xs = if String.equal c actual then Some xs else None in
   match exp with
-    | Sexp.Atom x -> check_con x []
-    | Sexp.List xs ->
-      match xs with
-        | y :: ys ->
-          begin
-            match y with
-              | Sexp.Atom x -> check_con x ys (* con *)
-              | Sexp.List [_; Sexp.Atom x; _] -> check_con x ys
-                (* cvc5: (as con ty) *)
-              | _ -> None
-          end
+  | Sexp.Atom x -> check_con x []
+  | Sexp.List xs ->
+    match xs with
+    | y :: ys ->
+      begin
+        match y with
+        | Sexp.Atom x -> check_con x ys
+        | Sexp.List [_; Sexp.Atom x; _] -> check_con x ys (*cvc5: (as con ty)*)
         | _ -> None
+      end
+    | _ -> None
 
 
 (** {2 Creating Solvers} *)
