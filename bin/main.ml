@@ -29,6 +29,16 @@ let main () =
   let [ m ] = get_exprs s [ q ] in
   let Some q = to_q m in
   print_endline (Q.to_string q);
+  declare_tuple s "tuple" "get" 3;
+  let t = declare s "t" (t_tuple "tuple" [t_int;t_bool;t_bool]) in
+  assume s (bool_not (tuple_get "get" 3 1 t));
+  let Sat = check s in
+  let [ m ] = get_exprs s [ t ] in
+  let Some a_ = to_con "tuple_3" m in
+  let [a;b;c] = a_ in
+  let Some a = to_z a in
+  let Some b = to_bool b in
+  let Some c = to_bool c in
   s.stop ()
 
 let _ = main()
