@@ -38,7 +38,8 @@ let allowed_simple_char c =
      in_range '0' '9' ||
      String.contains "~!@$%^&*_-+=<>.?/" c
 
-let is_simple_symbol s = s <> "" && String.for_all allowed_simple_char s
+let is_simple_symbol s = not (String.equal "" s) &&
+                         String.for_all allowed_simple_char s
 
 let quote_symbol s =
   if is_simple_symbol s
@@ -113,7 +114,7 @@ let num_neg x = app_ "-" [x]
 let num_k x = if x < 0 then num_neg (nat_k (-x)) else nat_k x
 
 (** Numeric constant *)
-let num_zk x = if x < Z.zero then num_neg (nat_zk (Z.neg x)) else nat_zk x
+let num_zk x = if Z.lt x Z.zero then num_neg (nat_zk (Z.neg x)) else nat_zk x
 
 (** Division of real numbers. *)
 let real_div x y = app_ "/" [x;y]
@@ -189,7 +190,7 @@ let bv_neg x = app_ "bvneg" [x]
 (** A bit-vector represented in binary.
 The number should fit in the given number of bits. *)
 let bv_bin w v =
-  if v >= Z.zero
+  if Z.geq v Z.zero
     then bv_nat_bin w v
     else bv_neg (bv_nat_bin w (Z.neg v))
 
@@ -197,7 +198,7 @@ let bv_bin w v =
 - The number should fit in the given number of bits.
 - The width should be a multiple of 4. *)
 let bv_hex w v =
-  if v >= Z.zero
+  if Z.geq v Z.zero
     then bv_nat_hex w v
     else bv_neg (bv_nat_hex w (Z.neg v))
 
