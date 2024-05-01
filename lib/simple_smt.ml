@@ -361,7 +361,7 @@ let check s =
 (** {2 Decoding Results} *)
 
 (** Get the values of some s-expressions. Only valid after a 'Sat' result. *)
-let get_exprs s vals =
+let get_exprs s vals: sexp list =
   let res = s.command (list [ atom "get-value"; list vals ]) in
   match res with
     | Sexp.List xs ->
@@ -408,6 +408,7 @@ let to_z (exp: sexp) =
     | Sexp.List [ Sexp.Atom "-"; Sexp.Atom s ] -> parse true s
     | _ -> None
 
+(** Try to decode an s-expression as a rational number. *)
 let to_q (exp: sexp) =
   let rec eval e =
     match e with
