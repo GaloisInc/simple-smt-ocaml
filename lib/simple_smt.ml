@@ -318,6 +318,12 @@ let set_logic s l       = simple_command s [ "set-logic"; l ]
 let push s              = simple_command s [ "push"; "1" ]
 let pop s               = simple_command s [ "pop"; "1" ]
 
+(** Declare a sort *)
+let declare_sort s f arity =
+  let e = atom f in
+  ack_command s (app_ "declare-sort" [ e; atom (string_of_int arity) ]);
+  e
+
 (** Declare a function *)
 let declare_fun s f ps r =
   let e = atom f in
