@@ -327,11 +327,23 @@ let declare_sort s f arity =
 (** Declare a function *)
 let declare_fun s f ps r =
   let e = atom f in
-  ack_command s (app_ "declare-fun" [ e; List ps; r ]);
+  ack_command s (app_ "declare-fun" [ e; list ps; r ]);
   e
 
 (** Declare a constant *)
 let declare s f t = declare_fun s f [] t
+
+(** Define a function.
+For convenience, returns an the defined name as a constant expression. *)
+let define_fun s f ps r d =
+  let e = atom f in
+  let mk_param (x,a) = list [atom x; a] in
+  ack_command s (app_ "define-fun" [ e; list (List.map mk_param ps); r; d ]);
+  e
+
+(** Define a constant.
+For convenience, returns an the defined name as a constant expression. *)
+let define s f r d = define_fun s f [] r d
 
 type con_field = string * sexp
 
@@ -502,6 +514,18 @@ let new_solver (cfg: solver_config): solver =
     set_option s ":produce-models" "true";
     s
 
+(** A connection to a solver,
+    specialized for evaluting in the context of a model *)
+type model_evaluator =
+  { 
+    eval:       (string * (string*sexp) list * sexp * sexp) list -> sexp -> sexp
+(** First define some local variables, then evaluate the expression *)
+  ; stop:       unit -> Unix.process_status
+  ; force_stop: unit -> Unix.process_status
+  }
+
+
+
 (* Start a new solver process, used to evaluate expressions in a model.
 Unlike a normal solver, the [command] field expects an expression to
 evalute, and gives the value of the expression in the context of the model. *)
@@ -510,9 +534,20 @@ let model_eval (cfg: solver_config) (m: sexp) =
   | Sexp.List defs ->
     let s = new_solver cfg in
     List.iter (ack_command s) defs;
+    let eval defs e =
+      match defs with
+      | [] -> get_expr s e
+      | _  ->
+        push s;
+        let mk_def (f,ps,r,d) = let _ = define_fun s f ps r d in () in
+        List.iter mk_def defs;
+        let res = get_expr s e in
+        pop s;
+        res
+    in
     begin match check s with
     | Sat ->
-      { command    = get_expr s
+      { eval       = eval
       ; stop       = s.stop
       ; force_stop = s.force_stop
       }

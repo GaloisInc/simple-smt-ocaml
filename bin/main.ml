@@ -22,7 +22,7 @@ let main () =
   check_sat s;
   let m = get_model s in
   let s1 = model_eval z3 m in
-  let _r = s1.command x in
+  let _r = s1.eval [] x in
   let m = get_expr s x in
   let a = to_bits w true m in
   printf "%s\n" (Z.to_string a);
