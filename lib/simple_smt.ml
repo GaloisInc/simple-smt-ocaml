@@ -363,6 +363,10 @@ let check s =
 
 (** {2 Decoding Results} *)
 
+(** Get all definitions currently in scope. Only valid after a [Sat] result.
+See also [model_eval] *)
+let get_model s = s.command (list [ atom "get-model" ])
+
 (** Get the values of some s-expressions. Only valid after a 'Sat' result. *)
 let get_exprs s vals: sexp list =
   let res = s.command (list [ atom "get-value"; list vals ]) in
@@ -402,7 +406,7 @@ let to_bits w signed (exp: sexp) =
   match exp with
   | Sexp.Atom s ->
     let tot_len = String.length s in
-    if tot_len < 2 || not (String.get s 0 = '#') then bad () else ();
+    if tot_len < 2 || not (Char.equal (String.get s 0) '#') then bad () else ();
     let dig_len = tot_len - 2 in
     let digs = String.sub s 2 dig_len in
     begin match String.get s 1 with
@@ -497,6 +501,25 @@ let new_solver (cfg: solver_config): solver =
     set_option s ":print-success" "true";
     set_option s ":produce-models" "true";
     s
+
+(* Start a new solver process, used to evaluate expressions in a model.
+Unlike a normal solver, the [command] field expects an expression to
+evalute, and gives the value of the expression in the context of the model. *)
+let model_eval (cfg: solver_config) (m: sexp) =
+  match m with
+  | Sexp.List defs ->
+    let s = new_solver cfg in
+    List.iter (ack_command s) defs;
+    begin match check s with
+    | Sat ->
+      { command    = get_expr s
+      ; stop       = s.stop
+      ; force_stop = s.force_stop
+      }
+    | _ -> raise (UnexpectedSolverResponse m)
+    end
+  | _ -> raise (UnexpectedSolverResponse m)
+
 
 let cvc5 : solver_config =
   { exe = "cvc5"
