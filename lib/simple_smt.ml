@@ -341,31 +341,6 @@ let declare_datatype s name type_params cons =
   in
   ack_command s (app_ "declare-datatype" [ atom name; def ])
 
-(** The name of a tuple with the given arity. *)
-let tuple_name name arity = name ^ "_" ^ string_of_int arity
-
-(** The name of a tuple selector. *)
-let tuple_selector sel_name arity field =
-  sel_name ^ "_" ^ string_of_int field ^ "_of_" ^ string_of_int arity
-
-(** A tuple type with the given name *)
-let t_tuple name tys =
-  let arity = List.length tys in
-  app_ (tuple_name name arity) tys
-
-(** Declare a datatype for a struct *)
-let declare_tuple s ty_name sel_name arity =
-  let name    = tuple_name ty_name arity in
-  let param i = "a" ^ string_of_int i in
-  let params  = List.init arity param in
-  let field i = (tuple_selector sel_name arity i, atom (param i)) in
-  let fields  = List.init arity field in
-  declare_datatype s name params [ (name, fields) ]
-
-(** Get a field of a tuple *)
-let tuple_get sel_name arity field tup =
-  app_ (tuple_selector sel_name arity field) [tup]
-
 (** Add an assertion *)
 let assume s e = ack_command s (app_ "assert" [e])
 
@@ -449,11 +424,10 @@ let to_con c (exp: sexp): sexp list option =
   | Sexp.List xs ->
     match xs with
     | y :: ys ->
-      begin
-        match y with
-        | Sexp.Atom x -> check_con x ys
-        | Sexp.List [_; Sexp.Atom x; _] -> check_con x ys (*cvc5: (as con ty)*)
-        | _ -> None
+      begin match y with
+      | Sexp.Atom x -> check_con x ys
+      | Sexp.List [_; Sexp.Atom x; _] -> check_con x ys (*cvc5: (as con ty)*)
+      | _ -> None
       end
     | _ -> None
 
