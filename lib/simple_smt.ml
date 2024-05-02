@@ -369,67 +369,83 @@ let get_exprs s vals: sexp list =
     in List.map get_val xs
   | _ -> raise (UnexpectedSolverResponse res)
 
+let get_expr s v =
+  let res = s.command (list [ atom "get-value"; list [v]]) in
+  match res with
+  | Sexp.List [ Sexp.List [_;x] ] -> x
+  | _ -> raise (UnexpectedSolverResponse res)
+
 (** Try to decode an s-expression as a boolean *)
 let to_bool (exp: sexp) =
   match exp with
-  | Sexp.Atom "true"  -> Some true
-  | Sexp.Atom "false" -> Some false
-  | _ -> None
+  | Sexp.Atom "true"  -> true
+  | Sexp.Atom "false" -> false
+  | _ -> raise (UnexpectedSolverResponse exp)
 
 (** Try to decode an s-expression as a bitvector of the given width.
 The 2nd argument indicates if the number is signed.
 *)
-let to_bits w signed (** Hello*) (exp: sexp) =
-  let check_sign z = Some (if signed then Z.signed_extract z 0 w else z) in
+let to_bits w signed (exp: sexp) =
+  let bad () = raise (UnexpectedSolverResponse exp) in
+  let get_num base digs =
+    try
+      let z = Z.of_string_base base digs in
+      if signed then Z.signed_extract z 0 w else z
+    with Invalid_argument _ -> bad ()
+  in
   match exp with
-  | Sexp.Atom s
-    when String.starts_with ~prefix: "#b" s && String.length s - 2 = w ->
-    check_sign (Z.of_string_base 2 (String.sub s 2 w))
-
-  | Sexp.Atom s
-    when String.starts_with ~prefix: "#x" s && (String.length s - 2) * 4 = w ->
-    check_sign (Z.of_string_base 16 (String.sub s 2 (w/4)))
-
-  | _ -> None
+  | Sexp.Atom s ->
+    let tot_len = String.length s in
+    if tot_len < 2 || not (String.get s 0 = '#') then bad () else ();
+    let dig_len = tot_len - 2 in
+    let digs = String.sub s 2 dig_len in
+    begin match String.get s 1 with
+    | 'b' -> if     dig_len = w then get_num  2 digs else bad ()
+    | 'x' -> if 4 * dig_len = w then get_num 16 digs else bad ()
+    | _   -> bad ()
+    end
+  | _ -> bad ()
 
 (** Try to decode an s-expression as an integer. *)
 let to_z (exp: sexp) =
   let parse do_neg s =
         try
           let r = Z.of_string s in
-          Some (if do_neg then Z.neg r else r)
-        with Invalid_argument _ -> None
+          if do_neg then Z.neg r else r
+        with Invalid_argument _ -> raise (UnexpectedSolverResponse exp)
   in
   match exp with
   | Sexp.Atom s -> parse false s
   | Sexp.List [ Sexp.Atom "-"; Sexp.Atom s ] -> parse true s
-  | _ -> None
+  | _ -> raise (UnexpectedSolverResponse exp)
 
 (** Try to decode an s-expression as a rational number. *)
 let to_q (exp: sexp) =
+  let bad () = raise (UnexpectedSolverResponse exp) in
   let rec eval e =
     match e with
     | Sexp.Atom s -> Q.of_string s
     | Sexp.List [ Sexp.Atom "-"; e1] -> Q.neg (eval e1)
     | Sexp.List [ Sexp.Atom "/"; e1; e2] -> Q.div (eval e1) (eval e2)
-    | _ -> raise (Invalid_argument "to_q")
-  in try Some (eval exp) with Invalid_argument _ -> None
+    | _ -> bad ()
+  in
+  try eval exp with Invalid_argument _ -> bad ()
 
 
 (** Try to decode an s-expression as a particular constructor number. *)
-let to_con c (exp: sexp): sexp list option =
-  let check_con actual xs = if String.equal c actual then Some xs else None in
+let to_con (exp: sexp): string * sexp list =
+  let bad () = raise (UnexpectedSolverResponse exp) in
   match exp with
-  | Sexp.Atom x -> check_con x []
+  | Sexp.Atom x -> (x, [])
   | Sexp.List xs ->
     match xs with
     | y :: ys ->
       begin match y with
-      | Sexp.Atom x -> check_con x ys
-      | Sexp.List [_; Sexp.Atom x; _] -> check_con x ys (*cvc5: (as con ty)*)
-      | _ -> None
+      | Sexp.Atom x -> (x,ys)
+      | Sexp.List [_; Sexp.Atom x; _] -> (x,ys) (*cvc5: (as con ty)*)
+      | _ -> bad ()
       end
-    | _ -> None
+    | _ -> bad ()
 
 
 (** {2 Creating Solvers} *)
