@@ -24,7 +24,7 @@ let nat_zk x = atom (Z.to_string x)
 (** Int-indexed family *)
 let fam f is = list (atom "_" :: atom f :: List.map nat_k is)
 
-(** Attributes *)
+(** Attribute *)
 let named x e = app_ "!" [e; atom ":named"; atom x ]
 
 (** Symbols are either simple or quoted (c.f. SMTLIB v2.6 S3.1).
@@ -69,10 +69,10 @@ let bool_k b = atom (if b then "true" else "false")
 (** If-then-else. This is polymorphic and can be used to construct any term. *)
 let ite x y z = app_ "ite" [x;y;z]
 
-(** Arguments are equal . *)
+(** Arguments are equal. *)
 let eq x y = app_ "=" [x;y]
 
-(** All arguments are different *)
+(** All arguments are pairwise different. *)
 let distinct xs = if List.is_empty xs then bool_k true else app_ "distinct" xs
 
 (** Logical negation. *)
@@ -107,7 +107,7 @@ let t_int = atom "Int"
 (** The type of reals. *)
 let t_real = atom "Real"
 
-(** Numeric negation *)
+(** Numeric negation. *)
 let num_neg x = app_ "-" [x]
 
 (** Numeric constant *)
@@ -119,28 +119,28 @@ let num_zk x = if Z.lt x Z.zero then num_neg (nat_zk (Z.neg x)) else nat_zk x
 (** Division of real numbers. *)
 let real_div x y = app_ "/" [x;y]
 
-(** Numeric constant *)
+(** Real constant. *)
 let num_qk (q: Q.t) = real_div (num_zk q.num) (num_zk q.den)
 
-(** Greater-then for numbers *)
+(** Greater-then for numbers. *)
 let gt x y = app_ ">" [x;y]
 
-(** Less-then for num *)
+(** Less-then for numbers. *)
 let lt x y = app_ "<" [x;y]
 
-(** Greater-than-or-equal-to for numbers *)
+(** Greater-than-or-equal-to for numbers. *)
 let geq x y = app_ ">=" [x;y]
 
-(** Less-than-or-equal-to for numbers *)
+(** Less-than-or-equal-to for numbers. *)
 let leq x y = app_ "<=" [x;y]
 
-(** Numeric addition *)
+(** Numeric addition. *)
 let num_add x y = app_ "+" [x;y]
 
-(** Numeric addition *)
+(** Numeric addition. *)
 let num_adds xs = if List.is_empty xs then num_k 0 else app_ "+" xs
 
-(** Numeric subtraction *)
+(** Numeric subtraction. *)
 let num_sub x y = app_ "-" [x;y]
 
 (** Numeric multiplication. *)
@@ -155,20 +155,20 @@ let num_div x y = app_ "div" [x;y]
 (** Numeric modulus. *)
 let num_mod x y = app_ "mod" [x;y]
 
-(** Is the number divisible by the given constant. *)
+(** Is the number divisible by the given constant? *)
 let num_divisible x n = app (fam "divisible" [n]) [x]
 
 
-(** real Satisfies [real_to_int x <= x] (i.e., this is like [floor]) *)
+(** Satisfies [real_to_int x <= x] (i.e., this is like [floor]) *)
 let real_to_int e = app_ "to_int" [e]
 
-(** Promote an integer to a real *)
+(** Promote an integer to a real. *)
 let int_to_real e = app_ "to_real" [e]
 
 
 (** {1 Bit-vectors} *)
 
-(** The type of bit vectors. *)
+(** [t_bits w] is the type of bit vectors of width [w]. *)
 let t_bits w = fam "BitVec" [w]
 
 (** A bit-vector represented in binary.
@@ -202,7 +202,7 @@ let bv_hex w v =
     then bv_nat_hex w v
     else bv_neg (bv_nat_hex w (Z.neg v))
 
-(** Make a bit-vector litera.  Uses hex representation if the size
+(** Make a bit-vector literal.  Uses hex representation if the size
 is a multiple of 4, and binary otherwise. *)
 let bv_k w v =
   if w mod 4 = 0
@@ -281,78 +281,81 @@ let bv_ashr x y = app_ "bvashr" [x;y]
 
 (** {1 Arrays} *)
 
-(** The type of arrays. *)
+(** [t_tarray k v] is the type of arrays with keys [k] and values [v] *)
 let t_array x y = app_ "Array" [x;y]
 
-(** Get an element of an array. *)
+(** [arr_select arr ix] is the element stored at index [ix] of [arr]. *)
 let arr_select arr i = app_ "select" [arr;i]
 
-(** Update an array *)
+(** [arr_store arr ix val] is an array that is the same as [arr],
+    except at index [ix] it has [val] *)
 let arr_store arr i v = app_ "store" [arr;i;v]
 
 
 (** {1 Sets} *)
 
-(* Some solvers support theories outside of SMTLIB and, unfortunately,
+(** Some solvers support theories outside of SMTLIB and, unfortunately,
    there is no standard for what things are called. We use this flag
    to decide how to generate terms for those cases. *)
 type solver_extensions = Z3 | CVC5 | Other
 
-(** The type of sets. *)
+(** [t_set t] is the type of sets with elements of type [t]. *)
 let t_set x = app_ "Set" [x]
 
-(** Empty set *)
+(** [set_empty ext t] is the empty set with elements of type [t] *)
 let set_empty ext t =
   match ext with
   | CVC5 -> app_ "as" [ atom "set.empty"; t_set t ]
   | _    -> app (app_ "as" [ atom "const"; t_set t ]) [bool_k false]
 
+(** [set_universe ext t] is the universal set with elements of type [t] *)
 let set_universe ext t =
   match ext with
   | CVC5 -> app_ "as" [ atom "set.universe"; t_set t ]
   | _    -> app (app_ "as" [ atom "const"; t_set t ]) [bool_k true]
 
-(** Insert element *)
+(** [set_insert ext x xs] is a set that has all elements of [xs] and also [x] *)
 let set_insert ext x xs =
   match ext with
   | CVC5 -> app_ "set.insert" [x;xs]
   | _    -> arr_store xs x (bool_k true)
 
-(** Union of two sets *)
+(** [set_union ext xs ys] has all elements from [xs] and also from [ys] *)
 let set_union ext x y =
   let nm = match ext with
            | CVC5 -> "set.union"
            | _    -> "union"
   in app_ nm [x;y]
 
-(** Intersection of two sets *)
+(** [set_intersection ext xs ys] has the elements
+    that are in both [xs] and [ys] *)
 let set_intersection ext x y =
   let nm = match ext with
            | CVC5 -> "set.inter"
            | _    -> "intersection"
   in app_ nm [x;y]
 
-(** Difference of two sets *)
+(** [set_difference ext xs ys] has the elements of [xs] that are not in [ys] *)
 let set_difference ext x y =
   let nm = match ext with
            | CVC5 -> "set.minus"
            | _    -> "setminus"
   in app_ nm [x;y]
 
-(** Complement *)
+(** [set_complement ext xs] has all elements that are not in [xs] *)
 let set_complement ext x =
   let nm = match ext with
            | CVC5 -> "set.complement"
            | _    -> "complement"
   in app_ nm [x]
 
-(** Membership *)
+(** [set_member ext x xs] is true if [x] is a member of [xs] *)
 let set_member ext x xs =
   match ext with
   | CVC5 -> app_ "set.member" [x;xs]
   | _    -> arr_select xs x
 
-(** Subset *)
+(** [set_subset ext xs ys] is true if all elements of [xs] are also in [ys] *)
 let set_subset ext xs ys =
   let nm = match ext with
            | CVC5 -> "set.subset"
@@ -595,10 +598,11 @@ type model_evaluator =
   }
 
 
+(** {2 Model Evaluation} *)
 
 (* Start a new solver process, used to evaluate expressions in a model.
 Unlike a normal solver, the [command] field expects an expression to
-evalute, and gives the value of the expression in the context of the model. *)
+evaluate, and gives the value of the expression in the context of the model. *)
 let model_eval (cfg: solver_config) (m: sexp) =
   let bad () = raise (UnexpectedSolverResponse m) in
   match m with
@@ -632,6 +636,8 @@ let model_eval (cfg: solver_config) (m: sexp) =
       ; force_stop = s.force_stop
       }
 
+
+(** {2 Solver Configurations} *)
 
 let cvc5 : solver_config =
   { exe = "cvc5"
