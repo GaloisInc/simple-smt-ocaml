@@ -284,23 +284,97 @@ let bv_ashr x y = app_ "bvashr" [x;y]
 (** The type of arrays. *)
 let t_array x y = app_ "Array" [x;y]
 
-(** Get an elemeent of an array. *)
-let arr_select x y = app_ "select" [x;y]
+(** Get an element of an array. *)
+let arr_select arr i = app_ "select" [arr;i]
 
 (** Update an array *)
-let arr_store x y z = app_ "store" [x;y;z]
+let arr_store arr i v = app_ "store" [arr;i;v]
 
+
+(** {1 Sets} *)
+
+(* Some solvers support theories outside of SMTLIB and, unfortunately,
+   there is no standard for what things are called. We use this flag
+   to decide how to generate terms for those cases. *)
+type solver_extensions = Z3 | CVC5 | Other
+
+(** The type of sets. *)
+let t_set x = app_ "Set" [x]
+
+(** Empty set *)
+let set_empty ext t =
+  match ext with
+  | CVC5 -> app_ "as" [ atom "set.empty"; t_set t ]
+  | _    -> app (app_ "as" [ atom "const"; t_set t ]) [bool_k false]
+
+let set_universe ext t =
+  match ext with
+  | CVC5 -> app_ "as" [ atom "set.universe"; t_set t ]
+  | _    -> app (app_ "as" [ atom "const"; t_set t ]) [bool_k true]
+
+(** Insert element *)
+let set_insert ext x xs =
+  match ext with
+  | CVC5 -> app_ "set.insert" [x;xs]
+  | _    -> arr_store xs x (bool_k true)
+
+(** Union of two sets *)
+let set_union ext x y =
+  let nm = match ext with
+           | CVC5 -> "set.union"
+           | _    -> "union"
+  in app_ nm [x;y]
+
+(** Intersection of two sets *)
+let set_intersection ext x y =
+  let nm = match ext with
+           | CVC5 -> "set.inter"
+           | _    -> "intersection"
+  in app_ nm [x;y]
+
+(** Difference of two sets *)
+let set_difference ext x y =
+  let nm = match ext with
+           | CVC5 -> "set.minus"
+           | _    -> "setminus"
+  in app_ nm [x;y]
+
+(** Complement *)
+let set_complement ext x =
+  let nm = match ext with
+           | CVC5 -> "set.complement"
+           | _    -> "complement"
+  in app_ nm [x]
+
+(** Membership *)
+let set_member ext x xs =
+  match ext with
+  | CVC5 -> app_ "set.member" [x;xs]
+  | _    -> arr_select xs x
+
+(** Subset *)
+let set_subset ext xs ys =
+  let nm = match ext with
+           | CVC5 -> "set.subset"
+           | _    -> "subset"
+  in app_ nm [xs;ys]
 
 
 
 (** {1 Solver} *)
 
+type solver_config =
+  { exe: string
+  ; opts: string list
+  ; exts: solver_extensions
+  }
 
 (** A connection to a solver *)
 type solver =
   { command:    sexp -> sexp
   ; stop:       unit -> Unix.process_status
   ; force_stop: unit -> Unix.process_status
+  ; config:     solver_config
   }
 
 exception UnexpectedSolverResponse of sexp
@@ -472,11 +546,6 @@ let to_con (exp: sexp): string * sexp list =
 
 (** {2 Creating Solvers} *)
 
-type solver_config =
-  { exe: string
-  ; opts: string list
-  }
-
 let new_solver (cfg: solver_config): solver =
   let args = Array.of_list (cfg.exe :: cfg.opts) in
   let proc = Unix.open_process_args_full cfg.exe args [| |] in
@@ -508,6 +577,7 @@ let new_solver (cfg: solver_config): solver =
     { command = send_command
     ; stop = stop_command
     ; force_stop = force_stop_command
+    ; config = cfg
     }
   in
     set_option s ":print-success" "true";
@@ -565,10 +635,12 @@ let model_eval (cfg: solver_config) (m: sexp) =
 
 let cvc5 : solver_config =
   { exe = "cvc5"
-  ; opts = ["--incremental"]
+  ; opts = ["--incremental"; "--sets-ext"]
+  ; exts = CVC5
   }
 
 let z3 : solver_config =
   { exe = "z3"
   ; opts = ["-in"; "-smt2" ]
+  ; exts = Z3
   }

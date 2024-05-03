@@ -11,7 +11,15 @@ let check_sat s =
 
 let main () =
   printf "Start\n%!";
-  let s = new_solver cvc5 in
+
+  let s = new_solver z3 in
+  let ext = s.config.exts in
+  let sx = declare s "sx" (t_set t_int) in
+  let sy = set_empty ext t_int in
+  let sz = set_universe ext t_int in
+  assume s (eq sx sy);
+  assume s (set_member ext (num_k 2) sz);
+  assume s (set_subset ext sx sy);
   check_sat s;
   let w = 8 in
   let f = declare_fun s "f" [t_int] (t_bits w) in
@@ -22,7 +30,7 @@ let main () =
   check_sat s;
 
   let m = get_model s in
-  let s1 = model_eval z3 m in
+  let s1 = model_eval s.config m in
   let _r = s1.eval [] x in
   print_endline "111";
   let _r = s1.eval [] x in
