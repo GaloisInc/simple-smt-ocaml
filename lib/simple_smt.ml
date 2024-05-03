@@ -530,30 +530,37 @@ type model_evaluator =
 Unlike a normal solver, the [command] field expects an expression to
 evalute, and gives the value of the expression in the context of the model. *)
 let model_eval (cfg: solver_config) (m: sexp) =
+  let bad () = raise (UnexpectedSolverResponse m) in
   match m with
+  | Sexp.Atom _ -> bad ()
   | Sexp.List defs ->
     let s = new_solver cfg in
     List.iter (ack_command s) defs;
+    let have_model = ref false in
+    let get_model () =
+          if !have_model
+            then true
+            else match check s with
+                 | Sat -> have_model := true; true
+                 | _   -> false
+    in
     let eval defs e =
       match defs with
-      | [] -> get_expr s e
+      | [] -> if get_model () then get_expr s e else bad ()
       | _  ->
+        let cleanup () = pop s; have_model := false in
         push s;
         let mk_def (f,ps,r,d) = let _ = define_fun s f ps r d in () in
         List.iter mk_def defs;
-        let res = get_expr s e in
-        pop s;
-        res
+        have_model := false;
+        if get_model ()
+          then begin let res = get_expr s e in cleanup(); res end
+          else begin cleanup (); bad () end
     in
-    begin match check s with
-    | Sat ->
       { eval       = eval
       ; stop       = s.stop
       ; force_stop = s.force_stop
       }
-    | _ -> raise (UnexpectedSolverResponse m)
-    end
-  | _ -> raise (UnexpectedSolverResponse m)
 
 
 let cvc5 : solver_config =
