@@ -363,6 +363,73 @@ let set_subset ext xs ys =
   in app_ nm [xs;ys]
 
 
+(** {1 Commands}
+The S-Expressions in this section define commands to the SMT solver.
+These can be sent to solver using {!ack_command}.
+*)
+
+(** A command made out of just atoms. *)
+let simple_command xs   = list (List.map atom xs)
+
+(** [set_option opt val] sets option [opt] to value [val]. *)
+let set_option x y      = simple_command [ "set-option"; x; y ]
+
+(** Set the logic to use. *)
+let set_logic l         = simple_command [ "set-logic"; l ]
+
+(** Push a new scope. *)
+let push                = simple_command [ "push"; "1" ]
+
+(** Pop a scope. *)
+let pop                 = simple_command [ "pop"; "1" ]
+
+(** [declare_sort name arity] declares a type [name], which expect
+  [arity] type parameters. *)
+let declare_sort f arity =
+  app_ "declare-sort" [ atom f; atom (string_of_int arity) ]
+
+(** [declare_fun name param_types result_type] declareas a function
+  expecting arguments with types [param_types] and computes a value
+  of type [result_type]. *)
+let declare_fun f ps r =
+  app_ "declare-fun" [ atom f; list ps; r ]
+
+(** [declare name type] declares a constant [name] of type [type]. *)
+let declare f t = declare_fun f [] t
+
+(** [define_fun name params result_type definition]
+defines a function called [name], with the given parameters
+[(name, type)], that computes a value of [result_type], using [definition]. *)
+let define_fun f ps r d =
+  let mk_param (x,a) = list [atom x; a] in
+  app_ "define-fun" [ atom f; list (List.map mk_param ps); r; d ]
+
+(** [define name type definition] defines a constant [name], of type
+    [type] defined as [definition]. *)
+let define f r d = define_fun f [] r d
+
+(** The fields of an ADT constructor: [(field_name, field_type)] *)
+type con_field = string * sexp
+
+(** [declare_datatype name type_params cons] define an ADT
+called [name] with type parameters [type_params] and constructors [cons].
+Each constructor is of the form [(name, fields)]. *)
+let declare_datatype name type_params cons =
+  let mk_field ((f,argTy):con_field)  = list [atom f; argTy] in
+  let mk_con (c,fs)       = list (atom c :: List.map mk_field fs) in
+  let mk_cons             = list (List.map mk_con cons) in
+  let def =
+    match type_params with
+    | [] -> mk_cons
+    | _  -> app_ "par" [ List (List.map atom type_params); mk_cons ]
+  in
+  app_ "declare-datatype" [ atom name; def ]
+
+(** Add an assertion to the current scope. *)
+let assume e = app_ "assert" [e]
+
+
+
 
 (** {1 Solver} *)
 
@@ -389,60 +456,13 @@ let ack_command (s: solver) cmd =
   | Sexp.Atom "success" -> ()
   | ans                 -> raise (UnexpectedSolverResponse ans)
 
-let simple_command s xs = ack_command s (list (List.map atom xs))
-let set_option s x y    = simple_command s [ "set-option"; x; y ]
-let set_logic s l       = simple_command s [ "set-logic"; l ]
-let push s              = simple_command s [ "push"; "1" ]
-let pop s               = simple_command s [ "pop"; "1" ]
-
-(** Declare a sort *)
-let declare_sort s f arity =
-  let e = atom f in
-  ack_command s (app_ "declare-sort" [ e; atom (string_of_int arity) ]);
-  e
-
-(** Declare a function *)
-let declare_fun s f ps r =
-  let e = atom f in
-  ack_command s (app_ "declare-fun" [ e; list ps; r ]);
-  e
-
-(** Declare a constant *)
-let declare s f t = declare_fun s f [] t
-
-(** Define a function.
-For convenience, returns an the defined name as a constant expression. *)
-let define_fun s f ps r d =
-  let e = atom f in
-  let mk_param (x,a) = list [atom x; a] in
-  ack_command s (app_ "define-fun" [ e; list (List.map mk_param ps); r; d ]);
-  e
-
-(** Define a constant.
-For convenience, returns an the defined name as a constant expression. *)
-let define s f r d = define_fun s f [] r d
-
-type con_field = string * sexp
-
-(** Declare an ADT using the format introduced in SmtLib 2.6. *)
-let declare_datatype s name type_params cons =
-  let mk_field ((f,argTy):con_field)  = list [atom f; argTy] in
-  let mk_con (c,fs)       = list (atom c :: List.map mk_field fs) in
-  let mk_cons             = list (List.map mk_con cons) in
-  let def =
-    match type_params with
-    | [] -> mk_cons
-    | _  -> app_ "par" [ List (List.map atom type_params); mk_cons ]
-  in
-  ack_command s (app_ "declare-datatype" [ atom name; def ])
-
-(** Add an assertion *)
-let assume s e = ack_command s (app_ "assert" [e])
 
 
 type result = Unsat | Unknown | Sat
   [@@deriving show]
 
+(** Check if the current set of assumptions are consistent.
+    Throws {!UnexpectedSolverResponse}. *)
 let check s =
   match s.command (Sexp.of_string "(check-sat)") with
   | Sexp.Atom "unsat" -> Unsat
@@ -453,10 +473,11 @@ let check s =
 (** {2 Decoding Results} *)
 
 (** Get all definitions currently in scope. Only valid after a [Sat] result.
-See also [model_eval] *)
+See also {!model_eval}. *)
 let get_model s = s.command (list [ atom "get-model" ])
 
-(** Get the values of some s-expressions. Only valid after a 'Sat' result. *)
+(** Get the values of some s-expressions. Only valid after a [Sat] result.
+    Throws {!UnexpectedSolverResponse}. *)
 let get_exprs s vals: sexp list =
   let res = s.command (list [ atom "get-value"; list vals ]) in
   match res with
@@ -468,13 +489,17 @@ let get_exprs s vals: sexp list =
     in List.map get_val xs
   | _ -> raise (UnexpectedSolverResponse res)
 
-let get_expr s v =
+(** Evalute the given expression in the current context.
+    Only valid after a [Sat] result.
+    Throws {!UnexpectedSolverResponse}. *)
+let get_expr s v: sexp =
   let res = s.command (list [ atom "get-value"; list [v]]) in
   match res with
   | Sexp.List [ Sexp.List [_;x] ] -> x
   | _ -> raise (UnexpectedSolverResponse res)
 
-(** Try to decode an s-expression as a boolean *)
+(** Try to decode an s-expression as a boolean
+    Throws {!UnexpectedSolverResponse}. *)
 let to_bool (exp: sexp) =
   match exp with
   | Sexp.Atom "true"  -> true
@@ -483,7 +508,7 @@ let to_bool (exp: sexp) =
 
 (** Try to decode an s-expression as a bitvector of the given width.
 The 2nd argument indicates if the number is signed.
-*)
+Throws {!UnexpectedSolverResponse}. *)
 let to_bits w signed (exp: sexp) =
   let bad () = raise (UnexpectedSolverResponse exp) in
   let get_num base digs =
@@ -505,7 +530,8 @@ let to_bits w signed (exp: sexp) =
     end
   | _ -> bad ()
 
-(** Try to decode an s-expression as an integer. *)
+(** Try to decode an s-expression as an integer.
+Throws {!UnexpectedSolverResponse}. *)
 let to_z (exp: sexp) =
   let parse do_neg s =
         try
@@ -518,7 +544,8 @@ let to_z (exp: sexp) =
   | Sexp.List [ Sexp.Atom "-"; Sexp.Atom s ] -> parse true s
   | _ -> raise (UnexpectedSolverResponse exp)
 
-(** Try to decode an s-expression as a rational number. *)
+(** Try to decode an s-expression as a rational number.
+Throws {!UnexpectedSolverResponse}. *)
 let to_q (exp: sexp) =
   let bad () = raise (UnexpectedSolverResponse exp) in
   let rec eval e =
@@ -531,7 +558,8 @@ let to_q (exp: sexp) =
   try eval exp with Invalid_argument _ -> bad ()
 
 
-(** Try to decode an s-expression as a particular constructor number. *)
+(** Try to decode an s-expression as constructor with field values.
+Throws {!UnexpectedSolverResponse}. *)
 let to_con (exp: sexp): string * sexp list =
   let bad () = raise (UnexpectedSolverResponse exp) in
   match exp with
@@ -583,15 +611,14 @@ let new_solver (cfg: solver_config): solver =
     ; config = cfg
     }
   in
-    set_option s ":print-success" "true";
-    set_option s ":produce-models" "true";
+    ack_command s (set_option ":print-success" "true");
+    ack_command s (set_option ":produce-models" "true");
     s
 
 (** A connection to a solver,
     specialized for evaluting in the context of a model *)
 type model_evaluator =
-  { 
-    eval:       (string * (string*sexp) list * sexp * sexp) list -> sexp -> sexp
+  { eval:       (string * (string*sexp) list * sexp * sexp) list -> sexp -> sexp
 (** First define some local variables, then evaluate the expression *)
   ; stop:       unit -> Unix.process_status
   ; force_stop: unit -> Unix.process_status
@@ -622,9 +649,9 @@ let model_eval (cfg: solver_config) (m: sexp) =
       match defs with
       | [] -> if get_model () then get_expr s e else bad ()
       | _  ->
-        let cleanup () = pop s; have_model := false in
-        push s;
-        let mk_def (f,ps,r,d) = let _ = define_fun s f ps r d in () in
+        let cleanup () = ack_command s pop; have_model := false in
+        ack_command s push;
+        let mk_def (f,ps,r,d) = ack_command s (define_fun f ps r d) in
         List.iter mk_def defs;
         have_model := false;
         if get_model ()
