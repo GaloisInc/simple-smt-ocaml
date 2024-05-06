@@ -378,10 +378,10 @@ let set_option x y      = simple_command [ "set-option"; x; y ]
 let set_logic l         = simple_command [ "set-logic"; l ]
 
 (** Push a new scope. *)
-let push                = simple_command [ "push"; "1" ]
+let push n              = simple_command [ "push"; string_of_int n ]
 
 (** Pop a scope. *)
-let pop                 = simple_command [ "pop"; "1" ]
+let pop n               = simple_command [ "pop"; string_of_int n ]
 
 (** [declare_sort name arity] declares a type [name], which expect
   [arity] type parameters. *)
@@ -649,8 +649,8 @@ let model_eval (cfg: solver_config) (m: sexp) =
       match defs with
       | [] -> if get_model () then get_expr s e else bad ()
       | _  ->
-        let cleanup () = ack_command s pop; have_model := false in
-        ack_command s push;
+        let cleanup () = ack_command s (pop 1); have_model := false in
+        ack_command s (push 1);
         let mk_def (f,ps,r,d) = ack_command s (define_fun f ps r d) in
         List.iter mk_def defs;
         have_model := false;
