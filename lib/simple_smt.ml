@@ -232,7 +232,9 @@ let bv_sign_extend i x = app (fam "sign_extend" [i]) [x]
 (** Zero extend by the given number of bits. *)
 let bv_zero_extend i x = app (fam "zero_extend" [i]) [x]
 
-(** Extract a sub-sequence of a bit vector. *)
+(** [bv_extract x i j] is a sub-vector of [x].
+    [i] is the larger bit index, [j] is the smaller one, and indexing
+    is inclusive. *)
 let bv_extract x y z = app (fam "extract" [y;z]) [ x ]
 
 (** Bitwise negation. *)
