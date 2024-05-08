@@ -434,6 +434,11 @@ let declare_datatype name type_params cons =
   in
   app_ "declare-datatype" [ atom name; def ]
 
+let match_datatype e alts =
+  let do_pat (c,xs)   = list (atom c :: List.map atom xs) in
+  let do_alt (pat,e)  = list [do_pat pat; e] in
+  app_ "match" [e; list (List.map do_alt alts)]
+
 (** Add an assertion to the current scope. *)
 let assume e = app_ "assert" [e]
 

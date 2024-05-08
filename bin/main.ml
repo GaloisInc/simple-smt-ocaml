@@ -54,6 +54,10 @@ let main () =
 
   ack_command s (declare_datatype "X" [] [ ("A",[]); ("B",[]) ]);
   let y = ack_command s (declare "y" (atom "X")); atom "y" in
+  ack_command s (assume (eq (num_k 0) (match_datatype y [ (("A",[]),num_k 0)
+                                                        ; (("B",[]),num_k 1)
+                                                        ])));
+
   check_sat s;
   let (c,_args) = to_con (get_expr s y) in
   print_endline c;
