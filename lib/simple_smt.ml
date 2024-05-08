@@ -15,6 +15,9 @@ let app f args =
 (** Apply a function to some arguments *)
 let app_ f (args: sexp list): sexp = app (atom f) args
 
+(** Type annotation *)
+let as_type x t = app_ "as" [x;t]
+
 (** Non-negative numeric constant. *)
 let nat_k x = atom (string_of_int x)
 
@@ -283,8 +286,12 @@ let bv_ashr x y = app_ "bvashr" [x;y]
 
 (** {1 Arrays} *)
 
-(** [t_tarray k v] is the type of arrays with keys [k] and values [v] *)
-let t_array x y = app_ "Array" [x;y]
+(** [t_tarray kt vt] is the type of arrays with keys [kt] and values [vt] *)
+let t_array kt vt = app_ "Array" [kt;vt]
+
+(** [arr_const kt vt v] is an array of type [Array kt vt] where all elements
+    are [v].  [v] should be of type [vt]. *)
+let arr_const kt vt v = app (as_type (atom "const") (t_array kt vt)) [v]
 
 (** [arr_select arr ix] is the element stored at index [ix] of [arr]. *)
 let arr_select arr i = app_ "select" [arr;i]

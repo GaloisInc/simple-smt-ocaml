@@ -12,7 +12,7 @@ let check_sat s =
 let main () =
   printf "Start\n%!";
 
-  let s = new_solver cvc5 in
+  let s = new_solver z3 in
   let ext = s.config.exts in
   let sx = ack_command s (declare "sx" (t_set t_int)); atom "sx" in
   let sy = set_empty ext t_int in
@@ -39,6 +39,7 @@ let main () =
           (bv_add x (atom "y")) in
   print_endline "333";
   let _r = s1.eval [] x in
+  let _ = s1.stop () in
 
   let m = get_expr s x in
   let a = to_bits w true m in
@@ -73,6 +74,13 @@ let main () =
     [ ("nil",[])
     ; ("cons",[("head",atom "a"); ("tail", app_ "list" [atom "a"])])
     ]);
+
+  ack_command s (define "arr" (t_array t_int t_bool)
+                (arr_const t_int t_bool (bool_k true)));
+  let arr = atom "arr" in
+  ack_command s (assume (arr_select arr (num_k 10)));
+  check_sat s;
+
 
   s.stop ()
 
