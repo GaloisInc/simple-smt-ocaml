@@ -18,6 +18,11 @@ let app_ f (args: sexp list): sexp = app (atom f) args
 (** Type annotation *)
 let as_type x t = app_ "as" [x;t]
 
+(** Let expression *)
+let let_ xs e =
+  let mk_def (x,e) = app_ x [e] in
+  app_ "let" [ list (List.map mk_def xs); e ]
+
 (** Non-negative numeric constant. *)
 let nat_k x = atom (string_of_int x)
 
@@ -438,6 +443,8 @@ let match_datatype e alts =
   let do_pat (c,xs)   = list (atom c :: List.map atom xs) in
   let do_alt (pat,e)  = list [do_pat pat; e] in
   app_ "match" [e; list (List.map do_alt alts)]
+
+
 
 (** Add an assertion to the current scope. *)
 let assume e = app_ "assert" [e]
