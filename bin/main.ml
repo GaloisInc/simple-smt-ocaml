@@ -13,18 +13,23 @@ let main () =
   printf "Start\n%!";
 
   let s = new_solver z3 in
+  ack_command s (assume (eq (let_ [("x", int_k 2)] (atom "x")) (int_k 2)));
+  check_sat s;
+
+  ack_command s (define "zz" t_real (real_k (Q.of_int 0)));
+
   let ext = s.config.exts in
   let sx = ack_command s (declare "sx" (t_set t_int)); atom "sx" in
   let sy = set_empty ext t_int in
   let sz = set_universe ext t_int in
   ack_command s (assume (eq sx sy));
-  ack_command s (assume (set_member ext (num_k 2) sz));
+  ack_command s (assume (set_member ext (int_k 2) sz));
   ack_command s (assume (set_subset ext sx sy));
   check_sat s;
   let w = 8 in
   let f = ack_command s (declare_fun "f" [t_int] (t_bits w)); atom "f" in
-  ack_command s (assume (eq (app f [num_k 2]) (bv_k w (Z.of_int 10))));
-  ack_command s (assume (eq (app f [num_k 3]) (bv_k w (Z.of_int 11))));
+  ack_command s (assume (eq (app f [int_k 2]) (bv_k w (Z.of_int 10))));
+  ack_command s (assume (eq (app f [int_k 3]) (bv_k w (Z.of_int 11))));
   let x = ack_command s (declare "x" (t_bits w)); atom "x" in
   ack_command s (assume (eq x (bv_k w (Z.of_int (-17)))));
   check_sat s;
@@ -51,24 +56,24 @@ let main () =
 
 
 
-
-  ack_command s (declare_datatype "X" [] [ ("A",[]); ("B",[]) ]);
+  ack_command s (declare_datatype "X" [] [ ("A",[("x",t_int)]); ("B",[]) ]);
   let y = ack_command s (declare "y" (atom "X")); atom "y" in
-  ack_command s (assume (eq (num_k 0) (match_datatype y [ (("A",[]),num_k 0)
-                                                        ; (("B",[]),num_k 1)
+  ack_command s (assume (eq (int_k 0) (match_datatype y [ (PCon ("A",["a"]),atom"a")
+                                                        ; (PCon ("B",[]),int_k 1)
                                                         ])));
 
   check_sat s;
+
   let (c,_args) = to_con (get_expr s y) in
   print_endline c;
   let p = ack_command s (declare "p" t_int); atom "p" in
-  ack_command s (assume (lt p (num_k 0)));
+  ack_command s (assume (lt p (int_k 0)));
   check_sat s;
   let m = get_expr s p in
   let p = to_z m in
   print_endline (Z.to_string p);
   let q = ack_command s (declare "q" t_real); atom "q" in
-  ack_command s (assume (eq (num_mul (num_k 2) q) (num_k (-5))));
+  ack_command s (assume (eq (num_mul (int_k 2) q) (int_k (-5))));
   check_sat s;
   let m = get_expr s q in
   let q = to_q m in
@@ -82,10 +87,10 @@ let main () =
   ack_command s (define "arr" (t_array t_int t_bool)
                 (arr_const t_int t_bool (bool_k true)));
   let arr = atom "arr" in
-  ack_command s (assume (arr_select arr (num_k 10)));
+  ack_command s (assume (arr_select arr (int_k 10)));
   check_sat s;
 
 
   s.stop ()
 
-let _ = main()
+let _ = main ()
