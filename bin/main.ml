@@ -67,7 +67,7 @@ let main () =
   let (c,_args) = to_con (get_expr s y) in
   print_endline c;
   let p = ack_command s (declare "p" t_int); atom "p" in
-  ack_command s (assume (lt p (int_k 0)));
+  ack_command s (assume (num_lt p (int_k 0)));
   check_sat s;
   let m = get_expr s p in
   let p = to_z m in
