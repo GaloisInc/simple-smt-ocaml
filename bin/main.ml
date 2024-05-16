@@ -13,6 +13,18 @@ let main () =
   printf "Start\n%!";
 
   let s = new_solver z3 in
+
+  ack_command s (declare_datatype "list" ["a"]
+    [ ("nil", [])
+    ; ("cons", [ ("head", atom "a"); ("tail", app_ "list" [atom "a"]) ])
+    ]);
+
+  ack_command s (push 1);
+  ack_command s (declare "xs" (app_ "list" [t_int]));
+  ack_command s (assume (is_con "cons" (atom "xs")));
+  check_sat s;
+  ack_command s (pop 1);
+
   ack_command s (assume (eq (let_ [("x", int_k 2)] (atom "x")) (int_k 2)));
   check_sat s;
 
@@ -78,11 +90,6 @@ let main () =
   let m = get_expr s q in
   let q = to_q m in
   print_endline (Q.to_string q);
-
-  ack_command s (declare_datatype "list" ["a"]
-    [ ("nil",[])
-    ; ("cons",[("head",atom "a"); ("tail", app_ "list" [atom "a"])])
-    ]);
 
   ack_command s (define "arr" (t_array t_int t_bool)
                 (arr_const t_int t_bool (bool_k true)));
