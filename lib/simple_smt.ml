@@ -13,6 +13,12 @@ let is_atom (f: sexp) =
   | Sexp.Atom _ -> true
   | Sexp.List _ -> false
 
+let to_list (f: sexp) =
+  match f with
+  | Sexp.Atom _ -> None
+  | Sexp.List xs -> Some xs
+
+
 (** Apply a function to some arguments. *)
 let app f args =
   if List.is_empty args then f else list (f :: args)
