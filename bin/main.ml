@@ -12,12 +12,32 @@ let check_sat s =
 let main () =
   printf "Start\n%!";
 
-  let s = new_solver z3 in
+  let s = new_solver { z3 with log = printf_log } in
 
   ack_command s (declare_datatype "list" ["a"]
     [ ("nil", [])
     ; ("cons", [ ("head", atom "a"); ("tail", app_ "list" [atom "a"]) ])
     ]);
+
+  ack_command s (declare_datatypes
+
+    [ ( "zig"
+      , ["a"]
+      , [ ("nil_zig", [])
+        ; ("cons", [ ("head", atom "a"); ("tail", app_ "zag" [atom "a"]) ])
+        ]
+      )
+    ; ( "zag"
+      , ["a"]
+      , [ ("nil_zag", [])
+        ; ("cons", [ ("head", atom "a"); ("tail", app_ "zig" [atom "a"]) ])
+        ]
+      )
+    ]);
+
+
+
+
 
   ack_command s (push 1);
   ack_command s (declare "xs" (app_ "list" [t_int]));
