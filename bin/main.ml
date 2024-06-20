@@ -116,6 +116,7 @@ let main () =
   let arr = atom "arr" in
   ack_command s (assume (arr_select arr (int_k 10)));
   check_sat s;
+  let (xs,res) = to_array (get_expr s arr) in
 
 
   s.stop ()
