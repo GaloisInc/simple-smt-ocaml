@@ -119,6 +119,17 @@ let main () =
   let (xs,res) = to_array (get_expr s arr) in
 
 
+  ack_command s (define "arr2" (t_array t_int t_int)
+                      (arr_store
+                          (arr_const t_int t_int (int_k 5))
+                          (int_k 5) (int_k 10)
+                      ));
+  let arr2 = atom "arr2" in
+  check_sat s;
+  let (xs2,res2) = to_array (get_expr s arr2) in
+
+
+
   s.stop ()
 
 let _ = main ()
