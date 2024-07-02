@@ -531,7 +531,7 @@ let () =
   Printexc.register_printer
     (function
       | UnexpectedSolverResponse s ->
-        Some (Printf.sprintf "UnexpectedSolverResponse(%s)" (Sexp.to_string s))
+        Some (Printf.sprintf "UnexpectedSolverResponse(%s)" (Sexp.to_string_hum s))
       | _ -> None
     )
 
@@ -691,11 +691,11 @@ let new_solver (cfg: solver_config): solver =
         fprintf out_chan "%s\n%!" s in
 
   let send_command c =
-        send_string (Sexp.to_string c);
+        send_string (Sexp.to_string_hum c);
         let ans = match Sexp.scan_sexp_opt in_buf with
                     | Some x -> x
                     | None -> Sexp.Atom (In_channel.input_all in_err_chan)
-        in cfg.log.receive (Sexp.to_string ans); ans
+        in cfg.log.receive (Sexp.to_string_hum ans); ans
   in
 
   let stop_command () =
