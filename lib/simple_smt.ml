@@ -592,8 +592,9 @@ let get_model s =
             match x with
             | Sexp.Atom a  -> if StrSet.mem a bound then vars else a :: vars
             | Sexp.List [ Sexp.Atom q; Sexp.List vs; body ]
-              when List.mem q ["forall";"exists";"let"] ->
-                free (add_bound bound vs) vars body
+              when String.equal q "forall"
+                || String.equal q "exist"
+                || String.equal q "let" -> free (add_bound bound vs) vars body
             | Sexp.List xs -> List.fold_left (free bound) vars xs
       in
       let check_def x =
