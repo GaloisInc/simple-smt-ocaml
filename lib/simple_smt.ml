@@ -847,6 +847,48 @@ type model_evaluator =
 
 (** {2 Model Evaluation} *)
 
+let model_eval' (s : solver) (m : sexp) =
+  let bad () = raise (UnexpectedSolverResponse m) in
+  match m with
+  | Sexp.Atom _ ->
+      bad ()
+  | Sexp.List defs ->
+      List.iter (ack_command s) defs;
+      let have_model = ref false in
+      let get_model () =
+        if !have_model then true
+        else
+          match check s with
+          | Sat ->
+              have_model := true;
+              true
+          | _ -> false
+      in
+      let eval defs e =
+        match defs with
+        | [] ->
+            if get_model () then get_expr s e
+            else (
+              bad ())
+        | _ ->
+            let cleanup () =
+              ack_command s (pop 1);
+              have_model := false
+            in
+            ack_command s (push 1);
+            let mk_def (f, ps, r, d) = ack_command s (define_fun f ps r d) in
+            List.iter mk_def defs;
+            have_model := false;
+            if get_model () then (
+              let res = get_expr s e in
+              cleanup ();
+              res)
+            else (
+              cleanup ();
+              bad ())
+      in
+      { eval; stop = s.stop; force_stop = s.force_stop }
+
 (* Start a new solver process, used to evaluate expressions in a model.
 Unlike a normal solver, the [command] field expects an expression to
 evaluate, and gives the value of the expression in the context of the model.
@@ -855,38 +897,8 @@ XXX: This does not work correctly with data declarations, because
 the model does not contain those.  We need to explicitly add them.
 *)
 let model_eval (cfg: solver_config) (m: sexp) =
-  let bad () = raise (UnexpectedSolverResponse m) in
-  match m with
-  | Sexp.Atom _ -> bad ()
-  | Sexp.List defs ->
-    let s = new_solver cfg in
-    List.iter (ack_command s) defs;
-    let have_model = ref false in
-    let get_model () =
-          if !have_model
-            then true
-            else match check s with
-                 | Sat -> have_model := true; true
-                 | _   -> false
-    in
-    let eval defs e =
-      match defs with
-      | [] -> if get_model () then get_expr s e else bad ()
-      | _  ->
-        let cleanup () = ack_command s (pop 1); have_model := false in
-        ack_command s (push 1);
-        let mk_def (f,ps,r,d) = ack_command s (define_fun f ps r d) in
-        List.iter mk_def defs;
-        have_model := false;
-        if get_model ()
-          then begin let res = get_expr s e in cleanup(); res end
-          else begin cleanup (); bad () end
-    in
-      { eval       = eval
-      ; stop       = s.stop
-      ; force_stop = s.force_stop
-      }
-
+  let s = new_solver cfg in
+  model_eval' s m
 
 (** {2 Solver Configurations} *)
 
